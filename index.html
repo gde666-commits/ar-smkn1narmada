@@ -34,43 +34,56 @@
       </a-camera>
     </a-scene>
 
-    <script>
-      // GANTI URL DI BAWAH DENGAN URL DEPLOYMENT APPS SCRIPT YANG BARU
-      const apiUrl = 'https://script.google.com/macros/s/AKfycbzlLohSaDNKSYm7-lH6UXFp7uoPQ5gNWOZJiLz_RWZ4luKf06dwV_I3B5okhODXepEX/exec';
+  <script>
+  // GANTI URL DI BAWAH DENGAN URL DEPLOYMENT APPS SCRIPT ANDA
+  const apiUrl = 'https://script.google.com/macros/s/AKfycbzlLohSaDNKSYm7-lH6UXFp7uoPQ5gNWOZJiLz_RWZ4luKf06dwV_I3B5okhODXepEX/exec';
 
-      // Mengambil data dari Backend GAS menggunakan Fetch API
-      fetch(apiUrl, { redirect: 'follow' })
-        .then(response => response.json())
-        .then(locations => {
-          const scene = document.querySelector('a-scene');
-          
-          locations.forEach((loc) => {
-            const box = document.createElement('a-box');
-            box.setAttribute('gps-entity-place', `latitude: ${loc.lat}; longitude: ${loc.lng};`);
-            box.setAttribute('color', '#00ff00');
-            box.setAttribute('scale', '5 5 5');
-            box.setAttribute('class', 'clickable');
+  // Mengambil data dari Backend GAS menggunakan Fetch API
+  fetch(apiUrl, { redirect: 'follow' })
+    .then(response => response.json())
+    .then(locations => {
+      
+      // Notifikasi untuk memastikan data masuk
+      alert('Berhasil memuat ' + locations.length + ' titik ruangan! Harap tunggu GPS stabil dan putar badan Anda 360 derajat.');
 
-            const text = document.createElement('a-text');
-            text.setAttribute('value', loc.nama);
-            text.setAttribute('look-at', '[gps-camera]');
-            text.setAttribute('align', 'center');
-            text.setAttribute('position', '0 7 0');
-            text.setAttribute('scale', '15 15 15');
-            text.setAttribute('color', 'yellow');
-            
-            box.appendChild(text);
+      const scene = document.querySelector('a-scene');
+      
+      locations.forEach((loc) => {
+        const box = document.createElement('a-box');
+        box.setAttribute('gps-entity-place', `latitude: ${loc.lat}; longitude: ${loc.lng};`);
+        box.setAttribute('color', '#00ff00');
+        
+        // 1. MEMPERBESAR SKALA KOTAK (Sebelumnya 5 5 5, sekarang menjadi 25 25 25)
+        box.setAttribute('scale', '25 25 25'); 
+        box.setAttribute('class', 'clickable');
 
-            box.addEventListener('click', function () {
-              document.getElementById('ruang-nama').innerText = loc.nama;
-              document.getElementById('ruang-info').innerText = loc.info;
-              document.getElementById('info-box').style.display = 'block';
-            });
+        const text = document.createElement('a-text');
+        text.setAttribute('value', loc.nama);
+        text.setAttribute('look-at', '[gps-camera]');
+        text.setAttribute('align', 'center');
+        
+        // 2. POSISI TEKS DINAIKKAN AGAR TIDAK TERTUTUP KOTAK
+        text.setAttribute('position', '0 25 0'); 
+        
+        // 3. MEMPERBESAR SKALA TEKS
+        text.setAttribute('scale', '75 75 75'); 
+        text.setAttribute('color', 'yellow');
+        
+        box.appendChild(text);
 
-            scene.appendChild(box);
-          });
-        })
-        .catch(error => console.error('Error fetching data:', error));
-    </script>
+        box.addEventListener('click', function () {
+          document.getElementById('ruang-nama').innerText = loc.nama;
+          document.getElementById('ruang-info').innerText = loc.info;
+          document.getElementById('info-box').style.display = 'block';
+        });
+
+        scene.appendChild(box);
+      });
+    })
+    .catch(error => {
+      console.error('Error fetching data:', error);
+      alert('Gagal mengambil data! Pastikan URL API sudah benar.');
+    });
+</script>
   </body>
 </html>
