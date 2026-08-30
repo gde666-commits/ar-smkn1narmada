@@ -5,54 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title>AR SMKN 1 Narmada</title>
     
-    <!-- Library A-Frame dan AR.js -->
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
     <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
     
     <style>
-      /* --- UI PENCARIAN (BARU) --- */
-      #search-container {
-        position: fixed;
-        top: 15px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 90%;
-        z-index: 9999;
-      }
-      #room-search {
-        width: 100%;
-        padding: 12px 15px;
-        font-size: 16px;
-        border-radius: 8px;
-        border: 2px solid #0055aa;
-        background: rgba(255, 255, 255, 0.95);
-        color: #333;
-        font-weight: bold;
-        box-shadow: 0px 4px 10px rgba(0,0,0,0.3);
-        outline: none;
-      }
+      #search-container { position: fixed; top: 15px; left: 50%; transform: translateX(-50%); width: 90%; z-index: 9999; }
+      #room-search { width: 100%; padding: 12px 15px; font-size: 16px; border-radius: 8px; border: 2px solid #0055aa; background: rgba(255, 255, 255, 0.95); font-weight: bold; box-shadow: 0px 4px 10px rgba(0,0,0,0.3); outline: none; }
 
-      /* Desain UI Pop-up Informasi */
       #info-box {
         position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
         background: rgba(0, 51, 102, 0.9); color: white; padding: 20px;
         border-radius: 12px; display: none; z-index: 9999; text-align: center;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; width: 85%; 
-        box-shadow: 0px 4px 10px rgba(0,0,0,0.5);
+        font-family: sans-serif; width: 85%; box-shadow: 0px 4px 10px rgba(0,0,0,0.5);
       }
       #info-box h3 { margin-top: 0; color: #ffcc00; margin-bottom: 5px; }
       #ruang-jarak { font-weight: bold; color: #00ff00; margin-bottom: 15px; font-size: 1.1em; }
-      #close-btn { padding: 8px 16px; background: #ff3333; color: white; border: none; border-radius: 5px; cursor: pointer; }
       
-      /* Desain HUD Status GPS (Diturunkan sedikit agar tidak tertutup pencarian) */
+      /* --- DESAIN TOMBOL BARU --- */
+      .btn-container { display: flex; gap: 10px; justify-content: center; margin-top: 15px; }
+      #route-btn { padding: 10px 15px; background: #00cc66; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 60%; }
+      #close-btn { padding: 10px 15px; background: #ff3333; color: white; border: none; border-radius: 5px; cursor: pointer; width: 35%; }
+      
       #hud-status {
         position: fixed; top: 75px; right: 5%; background: rgba(0,0,0,0.7);
         color: #00ff00; padding: 6px 10px; border-radius: 8px; z-index: 9999; 
         font-family: sans-serif; font-size: 11px; font-weight: bold;
       }
       
-      /* Overlay Peringatan Kamera */
       #error-overlay {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0,0,0,0.9); color: white; display: none; 
@@ -65,33 +45,31 @@
   
   <body style="margin: 0; overflow: hidden;">
     
-    <!-- UI Peringatan Kamera -->
     <div id="error-overlay">
       <h2>Akses Kamera Ditolak! 📷</h2>
-      <p>Aplikasi AR membutuhkan akses kamera untuk menampilkan ruangan kelas.</p>
       <button onclick="window.location.reload()" style="padding: 10px 20px; font-size: 16px; margin-top: 15px;">Muat Ulang Halaman</button>
     </div>
 
-    <!-- UI Pencarian Target Ruangan -->
     <div id="search-container">
       <select id="room-search" onchange="filterRuangan(this.value)">
         <option value="all">📍 Tampilkan Semua Ruangan</option>
-        <!-- Daftar ruangan akan dimasukkan ke sini oleh Javascript -->
       </select>
     </div>
 
-    <!-- UI HUD GPS -->
     <div id="hud-status">Sistem inisialisasi...</div>
 
-    <!-- UI Pop-up Detail Ruangan -->
     <div id="info-box">
       <h3 id="ruang-nama">Nama Ruangan</h3>
       <div id="ruang-jarak">Jarak: Menghitung...</div>
       <p id="ruang-info">Informasi detail ruangan</p>
-      <button id="close-btn" onclick="document.getElementById('info-box').style.display='none'">Tutup</button>
+      
+      <!-- TOMBOL RUTE DITAMBAHKAN DI SINI -->
+      <div class="btn-container">
+        <button id="route-btn">🗺️ Rute Jalan</button>
+        <button id="close-btn" onclick="document.getElementById('info-box').style.display='none'">Tutup</button>
+      </div>
     </div>
 
-    <!-- Scene Utama AR -->
     <a-scene vr-mode-ui="enabled: false" embedded arjs="sourceType: webcam; debugUIEnabled: false;">
       <a-camera gps-camera rotation-reader>
         <a-entity cursor="rayOrigin: mouse;" raycaster="objects: .clickable"></a-entity>
@@ -107,8 +85,6 @@
 
       let userLat = null;
       let userLng = null;
-      
-      // Array untuk menyimpan data seluruh elemen 3D
       const roomData = {}; 
 
       function hitungJarakMeter(lat1, lon1, lat2, lon2) {
@@ -123,27 +99,22 @@
         return Math.round(R * c);
       }
 
-      // FITUR BARU: Fungsi untuk memfilter ruangan berdasarkan Dropdown
       function filterRuangan(indexDipilih) {
         for (const key in roomData) {
           if (indexDipilih === "all") {
-            // Tampilkan semua dan kembalikan warna ke hijau
             roomData[key].box.setAttribute('visible', 'true');
             roomData[key].box.setAttribute('color', '#00ff00');
           } else {
             if (key === indexDipilih) {
-              // Jika ini ruangan yang dicari: Tampilkan dan ubah warna jadi Merah
               roomData[key].box.setAttribute('visible', 'true');
               roomData[key].box.setAttribute('color', '#ff0000');
             } else {
-              // Sembunyikan ruangan lainnya
               roomData[key].box.setAttribute('visible', 'false');
             }
           }
         }
       }
 
-      // Mengambil data dari Backend GAS
       fetch(apiUrl, { redirect: 'follow' })
         .then(response => response.json())
         .then(locations => {
@@ -152,20 +123,17 @@
           const searchSelect = document.getElementById('room-search');
           
           locations.forEach((loc, index) => {
-            // Menambahkan Pilihan ke Dropdown Pencarian
             const option = document.createElement('option');
             option.value = index;
             option.text = "🔍 Cari: " + loc.nama;
             searchSelect.appendChild(option);
 
-            // Membuat Objek Kotak AR
             const box = document.createElement('a-box');
             box.setAttribute('gps-entity-place', `latitude: ${loc.lat}; longitude: ${loc.lng};`);
-            box.setAttribute('color', '#00ff00'); // Warna awal hijau
+            box.setAttribute('color', '#00ff00'); 
             box.setAttribute('scale', '25 25 25'); 
             box.setAttribute('class', 'clickable');
 
-            // Membuat Objek Teks AR
             const text = document.createElement('a-text');
             text.setAttribute('value', loc.nama + '\n(...)');
             text.setAttribute('look-at', '[gps-camera]');
@@ -176,7 +144,6 @@
             
             box.appendChild(text);
 
-            // Simpan referensi BOX dan TEKS ke memori agar bisa diubah warnanya nanti
             roomData[index] = {
               box: box,
               teks: text,
@@ -186,7 +153,7 @@
               info: loc.info
             };
 
-            // Event saat kotak diklik
+            // Event saat kotak AR diklik
             box.addEventListener('click', function () {
               document.getElementById('ruang-nama').innerText = loc.nama;
               if (userLat && userLng) {
@@ -196,6 +163,18 @@
                 document.getElementById('ruang-jarak').innerText = "Jarak: Menunggu GPS...";
               }
               document.getElementById('ruang-info').innerText = loc.info;
+              
+              // --- FITUR GENERATE RUTE JALAN KAKI ---
+              document.getElementById('route-btn').onclick = function() {
+                if (userLat && userLng) {
+                  // Membuka Google Maps dengan parameter mode jalan kaki (walking)
+                  const mapUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${loc.lat},${loc.lng}&travelmode=walking`;
+                  window.open(mapUrl, '_blank');
+                } else {
+                  alert('Mohon tunggu sinyal GPS mengunci posisi Anda terlebih dahulu.');
+                }
+              };
+
               document.getElementById('info-box').style.display = 'block';
             });
 
@@ -204,7 +183,7 @@
         })
         .catch(error => console.error('Error fetching data:', error));
 
-      // --- STRATEGI PEMANASAN GPS ---
+      // Pemanasan GPS
       if ('geolocation' in navigator) {
         document.getElementById('hud-status').innerText = "Memulai pemanasan GPS...";
 
@@ -228,7 +207,6 @@
               
               document.getElementById('hud-status').innerText = "GPS Aktif | Akurasi: " + Math.round(position.coords.accuracy) + "m";
 
-              // Perbarui semua jarak pada teks 3D secara realtime
               for (const key in roomData) {
                  let data = roomData[key];
                  let jarak = hitungJarakMeter(userLat, userLng, data.lat, data.lng);
