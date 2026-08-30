@@ -14,35 +14,35 @@
         position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
         background: rgba(0, 51, 102, 0.9); color: white; padding: 20px;
         border-radius: 12px; display: none; z-index: 9999; text-align: center;
-        font-family: sans-serif; width: 85%;
-        box-shadow: 0px 4px 10px rgba(0,0,0,0.5);
+        font-family: sans-serif; width: 85%; box-shadow: 0px 4px 10px rgba(0,0,0,0.5);
       }
-      #info-box h3 { margin-top: 0; margin-bottom: 5px; color: #ffcc00; }
-      /* Style khusus untuk teks jarak */
-      #ruang-jarak { font-weight: bold; color: #00ffcc; margin-bottom: 10px; display: block; font-size: 14px; }
-      #ruang-info { font-size: 15px; line-height: 1.4; }
-      #close-btn { margin-top: 15px; padding: 10px 20px; background: #ff3333; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; }
+      #info-box h3 { margin-top: 0; color: #ffcc00; margin-bottom: 5px; }
       
-      #loading-text {
-        position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
-        background: rgba(0, 0, 0, 0.7); color: white; padding: 5px 15px;
-        border-radius: 20px; font-family: sans-serif; font-size: 12px; z-index: 9999;
+      /* Tambahan style untuk text jarak di pop-up */
+      #ruang-jarak { font-weight: bold; color: #00ff00; margin-bottom: 15px; font-size: 1.1em; }
+      
+      #close-btn { padding: 8px 16px; background: #ff3333; color: white; border: none; border-radius: 5px; cursor: pointer; }
+      
+      /* HUD Jarak Realtime di Pojok Kanan Atas (Opsional) */
+      #hud-status {
+        position: fixed; top: 10px; right: 10px; background: rgba(0,0,0,0.6);
+        color: white; padding: 8px; border-radius: 8px; z-index: 9999; font-family: sans-serif; font-size: 12px;
       }
     </style>
   </head>
   <body style="margin: 0; overflow: hidden;">
     
-    <div id="loading-text">Menunggu sinyal GPS...</div>
+    <div id="hud-status">Mencari GPS...</div>
 
     <div id="info-box">
       <h3 id="ruang-nama">Nama Ruangan</h3>
-      <span id="ruang-jarak">Jarak: Menghitung...</span>
+      <!-- Elemen baru untuk menampilkan jarak -->
+      <div id="ruang-jarak">Jarak: Menghitung...</div>
       <p id="ruang-info">Informasi</p>
       <button id="close-btn" onclick="document.getElementById('info-box').style.display='none'">Tutup</button>
     </div>
 
     <a-scene vr-mode-ui="enabled: false" embedded arjs="sourceType: webcam; debugUIEnabled: false;">
-      <!-- Kamera dengan event khusus (gps-camera-update-position) -->
       <a-camera gps-camera rotation-reader>
         <a-entity cursor="rayOrigin: mouse;" raycaster="objects: .clickable"></a-entity>
       </a-camera>
@@ -51,24 +51,46 @@
     <script>
       const apiUrl = 'https://script.google.com/macros/s/AKfycbzlLohSaDNKSYm7-lH6UXFp7uoPQ5gNWOZJiLz_RWZ4luKf06dwV_I3B5okhODXepEX/exec';
 
+      // Variabel global untuk menyimpan koordinat pengguna saat ini
+      let userLat = null;
+      let userLng = null;
+      // Objek untuk menyimpan referensi elemen teks pada objek 3D agar bisa di-update
+      const textElements = {}; 
+
+      // 1. FUNGSI MENGHITUNG JARAK (Haversine Formula) - Mengembalikan nilai dalam Meter
+      function hitungJarakMeter(lat1, lon1, lat2, lon2) {
+        if (!lat1 || !lon1) return 0;
+        const R = 6371e3; // Radius bumi dalam meter
+        const p1 = lat1 * Math.PI/180;
+        const p2 = lat2 * Math.PI/180;
+        const dp = (lat2-lat1) * Math.PI/180;
+        const dl = (lon2-lon1) * Math.PI/180;
+
+        const a = Math.sin(dp/2) * Math.sin(dp/2) +
+                  Math.cos(p1) * Math.cos(p2) *
+                  Math.sin(dl/2) * Math.sin(dl/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return Math.round(R * c);
+      }
+
+      // 2. MENDAPATKAN DATA RUANGAN DARI GOOGLE SHEETS
       fetch(apiUrl, { redirect: 'follow' })
         .then(response => response.json())
         .then(locations => {
           
           const scene = document.querySelector('a-scene');
           
-          locations.forEach((loc) => {
+          locations.forEach((loc, index) => {
             const box = document.createElement('a-box');
             box.setAttribute('gps-entity-place', `latitude: ${loc.lat}; longitude: ${loc.lng};`);
             box.setAttribute('color', '#00ff00');
             box.setAttribute('scale', '25 25 25'); 
             box.setAttribute('class', 'clickable');
-            
-            // Atribut kustom untuk menyimpan data jarak sementara
-            box.setAttribute('data-distance', 'Menghitung...');
 
             const text = document.createElement('a-text');
-            text.setAttribute('value', loc.nama);
+            // ID unik untuk setiap teks agar bisa diupdate secara realtime
+            text.setAttribute('id', 'text-' + index);
+            text.setAttribute('value', loc.nama + '\n(Menghitung jarak...)');
             text.setAttribute('look-at', '[gps-camera]');
             text.setAttribute('align', 'center');
             text.setAttribute('position', '0 25 0'); 
@@ -77,32 +99,26 @@
             
             box.appendChild(text);
 
-            // Menangkap event dari AR.js saat jarak berhasil dihitung
-            box.addEventListener('gps-entity-place-update-positon', function(event) {
-              const distance = event.detail.distance; // Nilai mentah dalam meter
-              
-              if(distance) {
-                // Sembunyikan teks loading karena GPS sudah jalan
-                document.getElementById('loading-text').style.display = 'none';
-                
-                let formatJarak = '';
-                if (distance > 1000) {
-                  formatJarak = (distance / 1000).toFixed(2) + " km";
-                } else {
-                  formatJarak = distance.toFixed(0) + " meter";
-                }
-                
-                // Simpan jarak ke atribut elemen agar bisa dipanggil saat diklik
-                box.setAttribute('data-distance', formatJarak);
-              }
-            });
+            // Simpan data ruangan dan referensi elemen teks ke dalam array
+            textElements[index] = {
+              elemen: text,
+              nama: loc.nama,
+              lat: loc.lat,
+              lng: loc.lng,
+              info: loc.info
+            };
 
+            // Event saat kotak diklik
             box.addEventListener('click', function () {
               document.getElementById('ruang-nama').innerText = loc.nama;
               
-              // Ambil data jarak dari atribut yang terus diperbarui oleh AR.js
-              const currentDistance = box.getAttribute('data-distance');
-              document.getElementById('ruang-jarak').innerText = 'Berjarak sekitar ' + currentDistance + ' dari Anda';
+              // Hitung jarak saat diklik
+              if (userLat && userLng) {
+                let jarak = hitungJarakMeter(userLat, userLng, loc.lat, loc.lng);
+                document.getElementById('ruang-jarak').innerText = "Jarak: " + jarak + " meter";
+              } else {
+                document.getElementById('ruang-jarak').innerText = "Jarak: Menunggu GPS...";
+              }
               
               document.getElementById('ruang-info').innerText = loc.info;
               document.getElementById('info-box').style.display = 'block';
@@ -111,10 +127,40 @@
             scene.appendChild(box);
           });
         })
-        .catch(error => {
-          console.error('Error fetching data:', error);
-          alert('Gagal mengambil data! Pastikan URL API sudah benar.');
-        });
+        .catch(error => console.error('Error fetching data:', error));
+
+      // 3. MELACAK POSISI GPS PENGGUNA SECARA REALTIME
+      if ('geolocation' in navigator) {
+        // watchPosition akan terus dipanggil setiap kali posisi HP berubah
+        navigator.geolocation.watchPosition(
+          function(position) {
+            userLat = position.coords.latitude;
+            userLng = position.coords.longitude;
+            
+            // Update indikator HUD
+            document.getElementById('hud-status').innerText = "GPS Aktif (Akurasi: " + Math.round(position.coords.accuracy) + "m)";
+
+            // Update jarak pada setiap teks yang melayang di AR
+            for (const key in textElements) {
+               let data = textElements[key];
+               let jarak = hitungJarakMeter(userLat, userLng, data.lat, data.lng);
+               // Ubah teks yang melayang menjadi "Nama Ruangan (xx meter)"
+               data.elemen.setAttribute('value', data.nama + '\n(' + jarak + 'm)');
+            }
+          },
+          function(error) {
+            document.getElementById('hud-status').innerText = "Error GPS: Aktifkan Lokasi";
+            console.error('GPS Error:', error);
+          },
+          {
+            enableHighAccuracy: true, // Wajib true agar pembacaan GPS akurat
+            maximumAge: 0,
+            timeout: 5000
+          }
+        );
+      } else {
+        document.getElementById('hud-status').innerText = "Browser tidak mendukung GPS";
+      }
     </script>
   </body>
 </html>
