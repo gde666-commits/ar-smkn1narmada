@@ -31,7 +31,6 @@
         letter-spacing: 0.5px;
       }
 
-      /* Posisinya disesuaikan agar berada di bawah Header */
       #search-container { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); width: 90%; z-index: 9999; }
       #room-search { width: 100%; padding: 12px 15px; font-size: 16px; border-radius: 8px; border: 2px solid #0055aa; background: rgba(255, 255, 255, 0.95); font-weight: bold; box-shadow: 0px 4px 10px rgba(0,0,0,0.3); outline: none; }
 
@@ -41,7 +40,6 @@
         font-family: sans-serif; font-size: 11px; font-weight: bold;
       }
 
-      /* Posisinya disesuaikan agar berada di atas Footer */
       #info-box {
         position: fixed; bottom: 35px; left: 50%; transform: translateX(-50%);
         background: rgba(0, 51, 102, 0.95); color: white; padding: 20px;
@@ -255,29 +253,33 @@
             option.text = "🔍 Cari: " + loc.nama;
             searchSelect.appendChild(option);
 
+            // 1. WRAPPER UTAMA (Mengatur Posisi GPS)
             const wrapper = document.createElement('a-entity');
             wrapper.setAttribute('gps-entity-place', `latitude: ${loc.lat}; longitude: ${loc.lng};`);
 
+            // 2. KONTEN BILLBOARD (Selalu menghadap kamera & diperbesar)
             const billboard = document.createElement('a-entity');
             billboard.setAttribute('look-at', '[gps-camera]');
             billboard.setAttribute('scale', '5 5 5'); 
 
-            const border = document.createElement('a-plane');
-            border.setAttribute('width', '1.2');  
-            border.setAttribute('height', '1.2'); 
+            // 3. BORDER LINGKARAN (Bingkai bulat di belakang logo)
+            const border = document.createElement('a-circle');
+            border.setAttribute('radius', '0.6');  // Radius 0.6 = Diameter 1.2
             border.setAttribute('color', '#00ff00'); 
             border.setAttribute('class', 'clickable'); 
 
-            const logo = document.createElement('a-image');
+            // 4. LOGO SEKOLAH (Gambar diubah bentuknya menjadi lingkaran juga)
+            const logo = document.createElement('a-circle');
             logo.setAttribute('src', '#logo-smk');
-            logo.setAttribute('width', '1');
-            logo.setAttribute('height', '1');
+            logo.setAttribute('radius', '0.5');    // Radius 0.5 = Diameter 1.0 (Lebih kecil dari border agar bingkai terlihat)
             logo.setAttribute('position', '0 0 0.05'); 
             
+            // Susun elemen
             billboard.appendChild(border);
             billboard.appendChild(logo);
             wrapper.appendChild(billboard);
 
+            // Simpan referensi data ruangan
             window.roomData[index] = {
               wrapper: wrapper,  
               border: border,    
@@ -287,14 +289,13 @@
               info: loc.info
             };
 
+            // Event saat border diklik
             border.addEventListener('click', function () {
               tampilkanInfoRuangan(index);
             });
 
             scene.appendChild(wrapper);
           });
-
-          // BLOK KODE YANG MENAMPILKAN POP UP OTOMATIS SUDAH DIHAPUS SEPENUHNYA DI SINI
           
         })
         .catch(error => console.error('Error fetching data:', error));
