@@ -42,65 +42,55 @@
       #error-overlay h2 { color: #ff5555; }
     </style>
 
-    <!-- KOMPONEN KHUSUS: Menggambar Jejak Garis Tebal Putus-Putus -->
     <script>
+      // Komponen Jejak Garis Tebal Putus-Putus
       AFRAME.registerComponent('ar-garis-putus', {
         init: function () {
           this.dashes = [];
-          this.numDashes = 20; // Jumlah potongan garis
+          this.numDashes = 20; 
           
-          // Membangun 20 balok 3D saat web dimuat
           for (let i = 0; i < this.numDashes; i++) {
             let dash = document.createElement('a-box');
-            // Membuat bentuk tebal dan memanjang: Lebar 40cm, Tinggi 10cm, Panjang 1.5 Meter
             dash.setAttribute('width', '0.4');
             dash.setAttribute('height', '0.1');
             dash.setAttribute('depth', '1.5'); 
-            dash.setAttribute('color', '#00ff00'); // Warna HIJAU
+            dash.setAttribute('color', '#00ff00'); 
             dash.setAttribute('opacity', '0.8');
-            dash.setAttribute('visible', 'false'); // Sembunyikan default
+            dash.setAttribute('visible', 'false'); 
             
             this.el.appendChild(dash);
             this.dashes.push(dash);
           }
         },
         tick: function () {
-          // Jika ada ruangan target yang dipilih dari dropdown
           if (window.activeTargetIndex && window.activeTargetIndex !== "all" && window.roomData[window.activeTargetIndex]) {
             const cam = document.querySelector('[gps-camera]');
-            const target = window.roomData[window.activeTargetIndex].box;
+            const target = window.roomData[window.activeTargetIndex].container; // Acuan diubah ke container
             
             if (cam && target) {
               const posCam = cam.object3D.position;
               const posTar = target.object3D.position;
               
-              // Jarak selisih antara kamera dan target
               let dx = posTar.x - posCam.x;
               let dy = posTar.y - posCam.y;
               let dz = posTar.z - posCam.z;
               
-              // Jejerkan potongan garis di sepanjang rute
               for (let i = 0; i < this.numDashes; i++) {
                 let fraction = (i + 1) / (this.numDashes + 1); 
                 
-                // Posisikan potongan secara proporsional
                 let dashPos = {
                   x: posCam.x + (dx * fraction),
-                  y: (posCam.y - 1.5) + (dy * fraction), // Turunkan garis 1.5m ke bawah level mata agar enak dilihat
+                  y: (posCam.y - 1.5) + (dy * fraction), 
                   z: posCam.z + (dz * fraction)
                 };
                 
                 let dash = this.dashes[i];
                 dash.setAttribute('position', dashPos);
-                
-                // Rotasi otomatis: pastikan balok menunjuk tepat ke arah target
                 dash.object3D.lookAt(posTar.x, posTar.y, posTar.z);
-                
                 dash.setAttribute('visible', 'true');
               }
             }
           } else {
-            // Sembunyikan semua potongan garis jika tidak ada yang dicari
             for (let i = 0; i < this.numDashes; i++) {
               this.dashes[i].setAttribute('visible', 'false');
             }
@@ -141,7 +131,6 @@
         <a-entity cursor="rayOrigin: mouse;" raycaster="objects: .clickable"></a-entity>
       </a-camera>
       
-      <!-- ELEMEN GARIS ACUAN (Jejak Hijau Putus-Putus) -->
       <a-entity id="garis-acuan" ar-garis-putus></a-entity>
     </a-scene>
 
@@ -175,14 +164,16 @@
 
         for (const key in window.roomData) {
           if (indexDipilih === "all") {
-            window.roomData[key].box.setAttribute('visible', 'true');
-            window.roomData[key].box.setAttribute('color', '#00ff00');
+            window.roomData[key].container.setAttribute('visible', 'true');
+            // Kembalikan border menjadi Hijau
+            window.roomData[key].border.setAttribute('color', '#00ff00');
           } else {
             if (key === indexDipilih) {
-              window.roomData[key].box.setAttribute('visible', 'true');
-              window.roomData[key].box.setAttribute('color', '#ff0000'); // Ubah ruangan target jadi merah
+              window.roomData[key].container.setAttribute('visible', 'true');
+              // Ubah border menjadi Merah
+              window.roomData[key].border.setAttribute('color', '#ff0000'); 
             } else {
-              window.roomData[key].box.setAttribute('visible', 'false');
+              window.roomData[key].container.setAttribute('visible', 'false');
             }
           }
         }
@@ -201,24 +192,45 @@
             option.text = "🔍 Cari: " + loc.nama;
             searchSelect.appendChild(option);
 
-            const box = document.createElement('a-box');
-            box.setAttribute('gps-entity-place', `latitude: ${loc.lat}; longitude: ${loc.lng};`);
-            box.setAttribute('color', '#00ff00'); 
-            box.setAttribute('scale', '25 25 25'); 
-            box.setAttribute('class', 'clickable');
+            // 1. MEMBUAT ENTITY CONTAINER (Bungkus Utama)
+            const container = document.createElement('a-entity');
+            container.setAttribute('gps-entity-place', `latitude: ${loc.lat}; longitude: ${loc.lng};`);
+            container.setAttribute('look-at', '[gps-camera]'); // Selalu menghadap wajah pengguna
+            container.setAttribute('scale', '25 25 25'); // Diperbesar
+            
+            // 2. MEMBUAT BORDER / BINGKAI (Background di belakang logo)
+            const border = document.createElement('a-plane');
+            border.setAttribute('color', '#00ff00'); // Default Hijau
+            border.setAttribute('width', '1.2'); // Sedikit lebih lebar dari logo
+            border.setAttribute('height', '1.2');
+            border.setAttribute('position', '0 0 -0.05'); // Letakkan sedikit di belakang gambar logo
+            border.setAttribute('class', 'clickable'); // Bisa diklik
 
+            // 3. MEMBUAT GAMBAR LOGO SEKOLAH
+            const img = document.createElement('a-image');
+            img.setAttribute('src', 'https://smkn1narmada.sch.id/web/wp-content/uploads/2024/01/SMKN1NARMADA-150x150.png');
+            img.setAttribute('width', '1');
+            img.setAttribute('height', '1');
+            img.setAttribute('position', '0 0 0'); // Letak tepat di tengah
+            img.setAttribute('class', 'clickable'); // Bisa diklik
+
+            // 4. MEMBUAT TEKS INFORMASI (Nama & Jarak)
             const text = document.createElement('a-text');
             text.setAttribute('value', loc.nama + '\n(...)');
-            text.setAttribute('look-at', '[gps-camera]');
             text.setAttribute('align', 'center');
-            text.setAttribute('position', '0 25 0'); 
-            text.setAttribute('scale', '75 75 75'); 
+            text.setAttribute('position', '0 1.2 0'); // Letakkan di atas logo
+            text.setAttribute('scale', '3 3 3'); // Sesuaikan ukuran teks
             text.setAttribute('color', 'yellow');
             
-            box.appendChild(text);
+            // Masukkan border, gambar, dan teks ke dalam container
+            container.appendChild(border);
+            container.appendChild(img);
+            container.appendChild(text);
 
+            // Simpan referensi ke memori
             window.roomData[index] = {
-              box: box,
+              container: container,
+              border: border, // Simpan border untuk ubah warna merah/hijau
               teks: text,
               nama: loc.nama,
               lat: loc.lat,
@@ -226,7 +238,8 @@
               info: loc.info
             };
 
-            box.addEventListener('click', function () {
+            // Event saat logo atau bingkai diklik
+            container.addEventListener('click', function () {
               document.getElementById('ruang-nama').innerText = loc.nama;
               if (userLat && userLng) {
                 let jarak = hitungJarakMeter(userLat, userLng, loc.lat, loc.lng);
@@ -248,7 +261,7 @@
               document.getElementById('info-box').style.display = 'block';
             });
 
-            scene.appendChild(box);
+            scene.appendChild(container);
           });
         })
         .catch(error => console.error('Error fetching data:', error));
