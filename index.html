@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title>AR SMKN 1 Narmada</title>
     
+    <!-- Library A-Frame dan AR.js -->
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
     <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
@@ -22,7 +23,6 @@
       #info-box h3 { margin-top: 0; color: #ffcc00; margin-bottom: 5px; }
       #ruang-jarak { font-weight: bold; color: #00ff00; margin-bottom: 15px; font-size: 1.1em; }
       
-      /* --- DESAIN TOMBOL BARU --- */
       .btn-container { display: flex; gap: 10px; justify-content: center; margin-top: 15px; }
       #route-btn { padding: 10px 15px; background: #00cc66; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 60%; }
       #close-btn { padding: 10px 15px; background: #ff3333; color: white; border: none; border-radius: 5px; cursor: pointer; width: 35%; }
@@ -41,6 +41,31 @@
       }
       #error-overlay h2 { color: #ff5555; }
     </style>
+
+    <!-- KOMPONEN KHUSUS: Menggambar Garis Acuan Realtime -->
+    <script>
+      AFRAME.registerComponent('ar-garis-petunjuk', {
+        tick: function () {
+          // Jika ada ruangan yang sedang dicari (bukan "all")
+          if (window.activeTargetIndex && window.activeTargetIndex !== "all" && window.roomData[window.activeTargetIndex]) {
+            const cam = document.querySelector('[gps-camera]');
+            const target = window.roomData[window.activeTargetIndex].box;
+            
+            if (cam && target) {
+              const posCam = cam.object3D.position;
+              const posTar = target.object3D.position;
+              
+              // Menggambar garis cyan (biru muda) dari bawah kamera ke kotak target
+              this.el.setAttribute('line', `start: ${posCam.x} ${posCam.y - 2} ${posCam.z}; end: ${posTar.x} ${posTar.y} ${posTar.z}; color: #00ffff; opacity: 0.8;`);
+              this.el.setAttribute('visible', 'true');
+            }
+          } else {
+            // Sembunyikan garis jika tidak ada yang dicari
+            this.el.setAttribute('visible', 'false');
+          }
+        }
+      });
+    </script>
   </head>
   
   <body style="margin: 0; overflow: hidden;">
@@ -63,7 +88,6 @@
       <div id="ruang-jarak">Jarak: Menghitung...</div>
       <p id="ruang-info">Informasi detail ruangan</p>
       
-      <!-- TOMBOL RUTE DITAMBAHKAN DI SINI -->
       <div class="btn-container">
         <button id="route-btn">🗺️ Rute Jalan</button>
         <button id="close-btn" onclick="document.getElementById('info-box').style.display='none'">Tutup</button>
@@ -74,6 +98,9 @@
       <a-camera gps-camera rotation-reader>
         <a-entity cursor="rayOrigin: mouse;" raycaster="objects: .clickable"></a-entity>
       </a-camera>
+      
+      <!-- ELEMEN GARIS ACUAN (Virtual Laser Pointer) -->
+      <a-entity id="garis-acuan" ar-garis-petunjuk visible="false"></a-entity>
     </a-scene>
 
     <script>
@@ -85,7 +112,10 @@
 
       let userLat = null;
       let userLng = null;
-      const roomData = {}; 
+      
+      // Mengubah roomData dan activeTargetIndex menjadi variabel global (window) agar bisa dibaca oleh komponen garis
+      window.roomData = {}; 
+      window.activeTargetIndex = "all";
 
       function hitungJarakMeter(lat1, lon1, lat2, lon2) {
         if (!lat1 || !lon1) return 0;
@@ -100,16 +130,18 @@
       }
 
       function filterRuangan(indexDipilih) {
-        for (const key in roomData) {
+        window.activeTargetIndex = indexDipilih; // Simpan status pencarian saat ini
+
+        for (const key in window.roomData) {
           if (indexDipilih === "all") {
-            roomData[key].box.setAttribute('visible', 'true');
-            roomData[key].box.setAttribute('color', '#00ff00');
+            window.roomData[key].box.setAttribute('visible', 'true');
+            window.roomData[key].box.setAttribute('color', '#00ff00');
           } else {
             if (key === indexDipilih) {
-              roomData[key].box.setAttribute('visible', 'true');
-              roomData[key].box.setAttribute('color', '#ff0000');
+              window.roomData[key].box.setAttribute('visible', 'true');
+              window.roomData[key].box.setAttribute('color', '#ff0000'); // Ubah jadi merah
             } else {
-              roomData[key].box.setAttribute('visible', 'false');
+              window.roomData[key].box.setAttribute('visible', 'false');
             }
           }
         }
@@ -144,7 +176,7 @@
             
             box.appendChild(text);
 
-            roomData[index] = {
+            window.roomData[index] = {
               box: box,
               teks: text,
               nama: loc.nama,
@@ -153,7 +185,6 @@
               info: loc.info
             };
 
-            // Event saat kotak AR diklik
             box.addEventListener('click', function () {
               document.getElementById('ruang-nama').innerText = loc.nama;
               if (userLat && userLng) {
@@ -164,10 +195,8 @@
               }
               document.getElementById('ruang-info').innerText = loc.info;
               
-              // --- FITUR GENERATE RUTE JALAN KAKI ---
               document.getElementById('route-btn').onclick = function() {
                 if (userLat && userLng) {
-                  // Membuka Google Maps dengan parameter mode jalan kaki (walking)
                   const mapUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${loc.lat},${loc.lng}&travelmode=walking`;
                   window.open(mapUrl, '_blank');
                 } else {
@@ -207,8 +236,8 @@
               
               document.getElementById('hud-status').innerText = "GPS Aktif | Akurasi: " + Math.round(position.coords.accuracy) + "m";
 
-              for (const key in roomData) {
-                 let data = roomData[key];
+              for (const key in window.roomData) {
+                 let data = window.roomData[key];
                  let jarak = hitungJarakMeter(userLat, userLng, data.lat, data.lng);
                  data.teks.setAttribute('value', data.nama + '\n(' + jarak + 'm)');
               }
