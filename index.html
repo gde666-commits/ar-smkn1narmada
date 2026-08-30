@@ -62,7 +62,6 @@
         tick: function () {
           if (window.activeTargetIndex && window.activeTargetIndex !== "all" && window.roomData[window.activeTargetIndex]) {
             const cam = document.querySelector('[gps-camera]');
-            // Mengambil posisi dari pembungkus (wrapper) titik lokasi
             const target = window.roomData[window.activeTargetIndex].wrapper;
             
             if (cam && target) {
@@ -124,10 +123,10 @@
 
     <a-scene vr-mode-ui="enabled: false" embedded arjs="sourceType: webcam; debugUIEnabled: false;">
       
-      <!-- Pre-load Logo Sekolah agar rendering lebih cepat -->
-<a-assets>
-  <img id="logo-smk" src="logo.png">
-</a-assets>
+      <!-- Logo Sekolah -->
+      <a-assets>
+        <img id="logo-smk" src="logo.png">
+      </a-assets>
 
       <a-camera gps-camera rotation-reader>
         <a-entity cursor="rayOrigin: mouse;" raycaster="objects: .clickable"></a-entity>
@@ -149,6 +148,7 @@
       
       window.roomData = {}; 
       window.activeTargetIndex = "all";
+      window.activePopupIndex = null; // Menyimpan index ruangan yang pop-up nya sedang terbuka
 
       function hitungJarakMeter(lat1, lon1, lat2, lon2) {
         if (!lat1 || !lon1) return 0;
@@ -164,20 +164,46 @@
 
       function filterRuangan(indexDipilih) {
         window.activeTargetIndex = indexDipilih; 
-
         for (const key in window.roomData) {
           if (indexDipilih === "all") {
             window.roomData[key].wrapper.setAttribute('visible', 'true');
-            window.roomData[key].border.setAttribute('color', '#00ff00'); // Border kembali hijau
+            window.roomData[key].border.setAttribute('color', '#00ff00');
           } else {
             if (key === indexDipilih) {
               window.roomData[key].wrapper.setAttribute('visible', 'true');
-              window.roomData[key].border.setAttribute('color', '#ff0000'); // Border target jadi merah
+              window.roomData[key].border.setAttribute('color', '#ff0000');
             } else {
-              window.roomData[key].wrapper.setAttribute('visible', 'false'); // Sembunyikan ruangan lain
+              window.roomData[key].wrapper.setAttribute('visible', 'false');
             }
           }
         }
+      }
+
+      // Fungsi untuk menampilkan Pop-up Informasi
+      function tampilkanInfoRuangan(index) {
+        if (!window.roomData[index]) return;
+        window.activePopupIndex = index;
+        let data = window.roomData[index];
+        
+        document.getElementById('ruang-nama').innerText = data.nama;
+        if (userLat && userLng) {
+          let jarak = hitungJarakMeter(userLat, userLng, data.lat, data.lng);
+          document.getElementById('ruang-jarak').innerText = "Jarak: " + jarak + " meter";
+        } else {
+          document.getElementById('ruang-jarak').innerText = "Jarak: Menunggu GPS...";
+        }
+        document.getElementById('ruang-info').innerText = data.info;
+        
+        document.getElementById('route-btn').onclick = function() {
+          if (userLat && userLng) {
+            const mapUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${data.lat},${data.lng}&travelmode=walking`;
+            window.open(mapUrl, '_blank');
+          } else {
+            alert('Mohon tunggu sinyal GPS mengunci posisi Anda terlebih dahulu.');
+          }
+        };
+
+        document.getElementById('info-box').style.display = 'block';
       }
 
       fetch(apiUrl, { redirect: 'follow' })
@@ -200,72 +226,49 @@
             // 2. KONTEN BILLBOARD (Selalu menghadap kamera & diperbesar)
             const billboard = document.createElement('a-entity');
             billboard.setAttribute('look-at', '[gps-camera]');
-            billboard.setAttribute('scale', '25 25 25'); // Ukuran keseluruhan diperbesar
+            billboard.setAttribute('scale', '25 25 25'); 
 
             // 3. BORDER (Bingkai Kotak Datar di belakang logo)
             const border = document.createElement('a-plane');
-            border.setAttribute('width', '1.2');  // Sedikit lebih lebar dari logo
-            border.setAttribute('height', '1.2'); // Sedikit lebih tinggi dari logo
-            border.setAttribute('color', '#00ff00'); // Warna bingkai (Hijau default)
-            border.setAttribute('class', 'clickable'); // Area yang bisa diklik
+            border.setAttribute('width', '1.2');  
+            border.setAttribute('height', '1.2'); 
+            border.setAttribute('color', '#00ff00'); 
+            border.setAttribute('class', 'clickable'); 
 
-            // 4. LOGO SEKOLAH (Gambar 2D)
+            // 4. LOGO SEKOLAH (Hanya gambar, tanpa teks di atasnya)
             const logo = document.createElement('a-image');
             logo.setAttribute('src', '#logo-smk');
             logo.setAttribute('width', '1');
             logo.setAttribute('height', '1');
-            logo.setAttribute('position', '0 0 0.05'); // Dimajukan sedikit agar tidak menembus border
-
-            // 5. TEKS NAMA RUANGAN
-            const text = document.createElement('a-text');
-            text.setAttribute('value', loc.nama + '\n(...)');
-            text.setAttribute('align', 'center');
-            text.setAttribute('position', '0 1.2 0.05'); // Posisi melayang di atas logo
-            text.setAttribute('scale', '2 2 2'); 
-            text.setAttribute('color', 'yellow');
+            logo.setAttribute('position', '0 0 0.05'); 
             
-            // Susun elemen dari dalam ke luar
+            // Susun elemen
             billboard.appendChild(border);
             billboard.appendChild(logo);
-            billboard.appendChild(text);
             wrapper.appendChild(billboard);
 
-            // Simpan referensi untuk fitur pencarian
+            // Simpan referensi data ruangan
             window.roomData[index] = {
-              wrapper: wrapper,  // Untuk navigasi garis
-              border: border,    // Untuk diubah warnanya
-              teks: text,        // Untuk update jarak
+              wrapper: wrapper,  
+              border: border,    
               nama: loc.nama,
               lat: loc.lat,
               lng: loc.lng,
               info: loc.info
             };
 
-            // Event saat logo/border diklik
+            // Event saat logo/border diklik, panggil fungsi tampilkan
             border.addEventListener('click', function () {
-              document.getElementById('ruang-nama').innerText = loc.nama;
-              if (userLat && userLng) {
-                let jarak = hitungJarakMeter(userLat, userLng, loc.lat, loc.lng);
-                document.getElementById('ruang-jarak').innerText = "Jarak: " + jarak + " meter";
-              } else {
-                document.getElementById('ruang-jarak').innerText = "Jarak: Menunggu GPS...";
-              }
-              document.getElementById('ruang-info').innerText = loc.info;
-              
-              document.getElementById('route-btn').onclick = function() {
-                if (userLat && userLng) {
-                  const mapUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${loc.lat},${loc.lng}&travelmode=walking`;
-                  window.open(mapUrl, '_blank');
-                } else {
-                  alert('Mohon tunggu sinyal GPS mengunci posisi Anda terlebih dahulu.');
-                }
-              };
-
-              document.getElementById('info-box').style.display = 'block';
+              tampilkanInfoRuangan(index);
             });
 
             scene.appendChild(wrapper);
           });
+
+          // OTOMATIS TAMPILKAN INFO TITIK PERTAMA JIKA DATA TERSEDIA
+          if (locations.length > 0) {
+            tampilkanInfoRuangan(0);
+          }
         })
         .catch(error => console.error('Error fetching data:', error));
 
@@ -293,10 +296,11 @@
               
               document.getElementById('hud-status').innerText = "GPS Aktif | Akurasi: " + Math.round(position.coords.accuracy) + "m";
 
-              for (const key in window.roomData) {
-                 let data = window.roomData[key];
+              // Update jarak secara realtime hanya di dalam Pop-up yang sedang terbuka
+              if (window.activePopupIndex !== null && window.roomData[window.activePopupIndex]) {
+                 let data = window.roomData[window.activePopupIndex];
                  let jarak = hitungJarakMeter(userLat, userLng, data.lat, data.lng);
-                 data.teks.setAttribute('value', data.nama + '\n(' + jarak + 'm)');
+                 document.getElementById('ruang-jarak').innerText = "Jarak: " + jarak + " meter";
               }
             },
             function(error) {
