@@ -42,11 +42,30 @@
       #error-overlay h2 { color: #ff5555; }
     </style>
 
-    <!-- KOMPONEN KHUSUS: Menggambar Garis Acuan Realtime -->
+    <!-- KOMPONEN KHUSUS: Menggambar Jejak Garis Tebal Putus-Putus -->
     <script>
-      AFRAME.registerComponent('ar-garis-petunjuk', {
+      AFRAME.registerComponent('ar-garis-putus', {
+        init: function () {
+          this.dashes = [];
+          this.numDashes = 20; // Jumlah potongan garis
+          
+          // Membangun 20 balok 3D saat web dimuat
+          for (let i = 0; i < this.numDashes; i++) {
+            let dash = document.createElement('a-box');
+            // Membuat bentuk tebal dan memanjang: Lebar 40cm, Tinggi 10cm, Panjang 1.5 Meter
+            dash.setAttribute('width', '0.4');
+            dash.setAttribute('height', '0.1');
+            dash.setAttribute('depth', '1.5'); 
+            dash.setAttribute('color', '#00ff00'); // Warna HIJAU
+            dash.setAttribute('opacity', '0.8');
+            dash.setAttribute('visible', 'false'); // Sembunyikan default
+            
+            this.el.appendChild(dash);
+            this.dashes.push(dash);
+          }
+        },
         tick: function () {
-          // Jika ada ruangan yang sedang dicari (bukan "all")
+          // Jika ada ruangan target yang dipilih dari dropdown
           if (window.activeTargetIndex && window.activeTargetIndex !== "all" && window.roomData[window.activeTargetIndex]) {
             const cam = document.querySelector('[gps-camera]');
             const target = window.roomData[window.activeTargetIndex].box;
@@ -55,13 +74,36 @@
               const posCam = cam.object3D.position;
               const posTar = target.object3D.position;
               
-              // Menggambar garis cyan (biru muda) dari bawah kamera ke kotak target
-              this.el.setAttribute('line', `start: ${posCam.x} ${posCam.y - 2} ${posCam.z}; end: ${posTar.x} ${posTar.y} ${posTar.z}; color: #00ffff; opacity: 0.8;`);
-              this.el.setAttribute('visible', 'true');
+              // Jarak selisih antara kamera dan target
+              let dx = posTar.x - posCam.x;
+              let dy = posTar.y - posCam.y;
+              let dz = posTar.z - posCam.z;
+              
+              // Jejerkan potongan garis di sepanjang rute
+              for (let i = 0; i < this.numDashes; i++) {
+                let fraction = (i + 1) / (this.numDashes + 1); 
+                
+                // Posisikan potongan secara proporsional
+                let dashPos = {
+                  x: posCam.x + (dx * fraction),
+                  y: (posCam.y - 1.5) + (dy * fraction), // Turunkan garis 1.5m ke bawah level mata agar enak dilihat
+                  z: posCam.z + (dz * fraction)
+                };
+                
+                let dash = this.dashes[i];
+                dash.setAttribute('position', dashPos);
+                
+                // Rotasi otomatis: pastikan balok menunjuk tepat ke arah target
+                dash.object3D.lookAt(posTar.x, posTar.y, posTar.z);
+                
+                dash.setAttribute('visible', 'true');
+              }
             }
           } else {
-            // Sembunyikan garis jika tidak ada yang dicari
-            this.el.setAttribute('visible', 'false');
+            // Sembunyikan semua potongan garis jika tidak ada yang dicari
+            for (let i = 0; i < this.numDashes; i++) {
+              this.dashes[i].setAttribute('visible', 'false');
+            }
           }
         }
       });
@@ -99,8 +141,8 @@
         <a-entity cursor="rayOrigin: mouse;" raycaster="objects: .clickable"></a-entity>
       </a-camera>
       
-      <!-- ELEMEN GARIS ACUAN (Virtual Laser Pointer) -->
-      <a-entity id="garis-acuan" ar-garis-petunjuk visible="false"></a-entity>
+      <!-- ELEMEN GARIS ACUAN (Jejak Hijau Putus-Putus) -->
+      <a-entity id="garis-acuan" ar-garis-putus></a-entity>
     </a-scene>
 
     <script>
@@ -113,7 +155,6 @@
       let userLat = null;
       let userLng = null;
       
-      // Mengubah roomData dan activeTargetIndex menjadi variabel global (window) agar bisa dibaca oleh komponen garis
       window.roomData = {}; 
       window.activeTargetIndex = "all";
 
@@ -130,7 +171,7 @@
       }
 
       function filterRuangan(indexDipilih) {
-        window.activeTargetIndex = indexDipilih; // Simpan status pencarian saat ini
+        window.activeTargetIndex = indexDipilih; 
 
         for (const key in window.roomData) {
           if (indexDipilih === "all") {
@@ -139,7 +180,7 @@
           } else {
             if (key === indexDipilih) {
               window.roomData[key].box.setAttribute('visible', 'true');
-              window.roomData[key].box.setAttribute('color', '#ff0000'); // Ubah jadi merah
+              window.roomData[key].box.setAttribute('color', '#ff0000'); // Ubah ruangan target jadi merah
             } else {
               window.roomData[key].box.setAttribute('visible', 'false');
             }
