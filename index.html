@@ -43,21 +43,18 @@
     </style>
 
     <script>
-      // Komponen Jejak Garis Tebal Putus-Putus
       AFRAME.registerComponent('ar-garis-putus', {
         init: function () {
           this.dashes = [];
           this.numDashes = 20; 
-          
           for (let i = 0; i < this.numDashes; i++) {
             let dash = document.createElement('a-box');
             dash.setAttribute('width', '0.4');
             dash.setAttribute('height', '0.1');
             dash.setAttribute('depth', '1.5'); 
-            dash.setAttribute('color', '#00ff00'); 
+            dash.setAttribute('color', '#00ff00');
             dash.setAttribute('opacity', '0.8');
             dash.setAttribute('visible', 'false'); 
-            
             this.el.appendChild(dash);
             this.dashes.push(dash);
           }
@@ -65,7 +62,8 @@
         tick: function () {
           if (window.activeTargetIndex && window.activeTargetIndex !== "all" && window.roomData[window.activeTargetIndex]) {
             const cam = document.querySelector('[gps-camera]');
-            const target = window.roomData[window.activeTargetIndex].container; // Acuan diubah ke container
+            // Mengambil posisi dari pembungkus (wrapper) titik lokasi
+            const target = window.roomData[window.activeTargetIndex].wrapper;
             
             if (cam && target) {
               const posCam = cam.object3D.position;
@@ -77,13 +75,11 @@
               
               for (let i = 0; i < this.numDashes; i++) {
                 let fraction = (i + 1) / (this.numDashes + 1); 
-                
                 let dashPos = {
                   x: posCam.x + (dx * fraction),
                   y: (posCam.y - 1.5) + (dy * fraction), 
                   z: posCam.z + (dz * fraction)
                 };
-                
                 let dash = this.dashes[i];
                 dash.setAttribute('position', dashPos);
                 dash.object3D.lookAt(posTar.x, posTar.y, posTar.z);
@@ -127,10 +123,17 @@
     </div>
 
     <a-scene vr-mode-ui="enabled: false" embedded arjs="sourceType: webcam; debugUIEnabled: false;">
+      
+      <!-- Pre-load Logo Sekolah agar rendering lebih cepat -->
+      <a-assets>
+        <img id="logo-smk" src="https://smkn1narmada.sch.id/web/wp-content/uploads/2024/01/SMKN1NARMADA-150x150.png" crossorigin="anonymous">
+      </a-assets>
+
       <a-camera gps-camera rotation-reader>
         <a-entity cursor="rayOrigin: mouse;" raycaster="objects: .clickable"></a-entity>
       </a-camera>
       
+      <!-- Garis jejak navigasi -->
       <a-entity id="garis-acuan" ar-garis-putus></a-entity>
     </a-scene>
 
@@ -164,16 +167,14 @@
 
         for (const key in window.roomData) {
           if (indexDipilih === "all") {
-            window.roomData[key].container.setAttribute('visible', 'true');
-            // Kembalikan border menjadi Hijau
-            window.roomData[key].border.setAttribute('color', '#00ff00');
+            window.roomData[key].wrapper.setAttribute('visible', 'true');
+            window.roomData[key].border.setAttribute('color', '#00ff00'); // Border kembali hijau
           } else {
             if (key === indexDipilih) {
-              window.roomData[key].container.setAttribute('visible', 'true');
-              // Ubah border menjadi Merah
-              window.roomData[key].border.setAttribute('color', '#ff0000'); 
+              window.roomData[key].wrapper.setAttribute('visible', 'true');
+              window.roomData[key].border.setAttribute('color', '#ff0000'); // Border target jadi merah
             } else {
-              window.roomData[key].container.setAttribute('visible', 'false');
+              window.roomData[key].wrapper.setAttribute('visible', 'false'); // Sembunyikan ruangan lain
             }
           }
         }
@@ -192,54 +193,56 @@
             option.text = "🔍 Cari: " + loc.nama;
             searchSelect.appendChild(option);
 
-            // 1. MEMBUAT ENTITY CONTAINER (Bungkus Utama)
-            const container = document.createElement('a-entity');
-            container.setAttribute('gps-entity-place', `latitude: ${loc.lat}; longitude: ${loc.lng};`);
-            container.setAttribute('look-at', '[gps-camera]'); // Selalu menghadap wajah pengguna
-            container.setAttribute('scale', '25 25 25'); // Diperbesar
-            
-            // 2. MEMBUAT BORDER / BINGKAI (Background di belakang logo)
+            // 1. WRAPPER UTAMA (Mengatur Posisi GPS)
+            const wrapper = document.createElement('a-entity');
+            wrapper.setAttribute('gps-entity-place', `latitude: ${loc.lat}; longitude: ${loc.lng};`);
+
+            // 2. KONTEN BILLBOARD (Selalu menghadap kamera & diperbesar)
+            const billboard = document.createElement('a-entity');
+            billboard.setAttribute('look-at', '[gps-camera]');
+            billboard.setAttribute('scale', '25 25 25'); // Ukuran keseluruhan diperbesar
+
+            // 3. BORDER (Bingkai Kotak Datar di belakang logo)
             const border = document.createElement('a-plane');
-            border.setAttribute('color', '#00ff00'); // Default Hijau
-            border.setAttribute('width', '1.2'); // Sedikit lebih lebar dari logo
-            border.setAttribute('height', '1.2');
-            border.setAttribute('position', '0 0 -0.05'); // Letakkan sedikit di belakang gambar logo
-            border.setAttribute('class', 'clickable'); // Bisa diklik
+            border.setAttribute('width', '1.2');  // Sedikit lebih lebar dari logo
+            border.setAttribute('height', '1.2'); // Sedikit lebih tinggi dari logo
+            border.setAttribute('color', '#00ff00'); // Warna bingkai (Hijau default)
+            border.setAttribute('class', 'clickable'); // Area yang bisa diklik
 
-            // 3. MEMBUAT GAMBAR LOGO SEKOLAH
-            const img = document.createElement('a-image');
-            img.setAttribute('src', 'https://smkn1narmada.sch.id/web/wp-content/uploads/2024/01/SMKN1NARMADA-150x150.png');
-            img.setAttribute('width', '1');
-            img.setAttribute('height', '1');
-            img.setAttribute('position', '0 0 0'); // Letak tepat di tengah
-            img.setAttribute('class', 'clickable'); // Bisa diklik
+            // 4. LOGO SEKOLAH (Gambar 2D)
+            const logo = document.createElement('a-image');
+            logo.setAttribute('src', '#logo-smk');
+            logo.setAttribute('width', '1');
+            logo.setAttribute('height', '1');
+            logo.setAttribute('position', '0 0 0.05'); // Dimajukan sedikit agar tidak menembus border
 
-            // 4. MEMBUAT TEKS INFORMASI (Nama & Jarak)
+            // 5. TEKS NAMA RUANGAN
             const text = document.createElement('a-text');
             text.setAttribute('value', loc.nama + '\n(...)');
             text.setAttribute('align', 'center');
-            text.setAttribute('position', '0 1.2 0'); // Letakkan di atas logo
-            text.setAttribute('scale', '3 3 3'); // Sesuaikan ukuran teks
+            text.setAttribute('position', '0 1.2 0.05'); // Posisi melayang di atas logo
+            text.setAttribute('scale', '2 2 2'); 
             text.setAttribute('color', 'yellow');
             
-            // Masukkan border, gambar, dan teks ke dalam container
-            container.appendChild(border);
-            container.appendChild(img);
-            container.appendChild(text);
+            // Susun elemen dari dalam ke luar
+            billboard.appendChild(border);
+            billboard.appendChild(logo);
+            billboard.appendChild(text);
+            wrapper.appendChild(billboard);
 
-            // Simpan referensi ke memori
+            // Simpan referensi untuk fitur pencarian
             window.roomData[index] = {
-              container: container,
-              border: border, // Simpan border untuk ubah warna merah/hijau
-              teks: text,
+              wrapper: wrapper,  // Untuk navigasi garis
+              border: border,    // Untuk diubah warnanya
+              teks: text,        // Untuk update jarak
               nama: loc.nama,
               lat: loc.lat,
               lng: loc.lng,
               info: loc.info
             };
 
-            // Event saat logo atau bingkai diklik
-            container.addEventListener('click', function () {
+            // Event saat logo/border diklik
+            border.addEventListener('click', function () {
               document.getElementById('ruang-nama').innerText = loc.nama;
               if (userLat && userLng) {
                 let jarak = hitungJarakMeter(userLat, userLng, loc.lat, loc.lng);
@@ -261,7 +264,7 @@
               document.getElementById('info-box').style.display = 'block';
             });
 
-            scene.appendChild(container);
+            scene.appendChild(wrapper);
           });
         })
         .catch(error => console.error('Error fetching data:', error));
