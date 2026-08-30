@@ -264,11 +264,9 @@
 
             scene.appendChild(wrapper);
           });
+          
+          // (KODE TAMPILAN OTOMATIS POPUP SUDAH DIHAPUS DI SINI)
 
-          // OTOMATIS TAMPILKAN INFO TITIK PERTAMA JIKA DATA TERSEDIA
-          if (locations.length > 0) {
-            tampilkanInfoRuangan(0);
-          }
         })
         .catch(error => console.error('Error fetching data:', error));
 
