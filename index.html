@@ -117,7 +117,7 @@
   
   <body style="margin: 0; overflow: hidden;">
     
-    <!-- HEADER BARU -->
+    <!-- HEADER -->
     <div id="app-header">
       <img src="logo.png" alt="Logo">
       <h1>AR Skanada</h1>
@@ -150,7 +150,7 @@
       </div>
     </div>
 
-    <!-- FOOTER BARU -->
+    <!-- FOOTER -->
     <div id="app-footer">
       created by Gde.A @skanada 2026
     </div>
@@ -158,7 +158,6 @@
     <!-- Scene AR -->
     <a-scene vr-mode-ui="enabled: false" embedded arjs="sourceType: webcam; debugUIEnabled: false;">
       
-      <!-- Logo Sekolah Asset -->
       <a-assets>
         <img id="logo-smk" src="logo.png">
       </a-assets>
@@ -167,7 +166,7 @@
         <a-entity cursor="rayOrigin: mouse;" raycaster="objects: .clickable"></a-entity>
       </a-camera>
       
-      <!-- Garis jejak navigasi -->
+      <!-- Garis navigasi -->
       <a-entity id="garis-acuan" ar-garis-putus></a-entity>
     </a-scene>
 
@@ -185,6 +184,9 @@
       window.activeTargetIndex = "all";
       window.activePopupIndex = null; 
 
+      // Radius Batas Tampil (dalam meter)
+      const RADIUS_MAKSIMAL = 200;
+
       function hitungJarakMeter(lat1, lon1, lat2, lon2) {
         if (!lat1 || !lon1) return 0;
         const R = 6371e3; 
@@ -197,21 +199,43 @@
         return Math.round(R * c);
       }
 
-      function filterRuangan(indexDipilih) {
-        window.activeTargetIndex = indexDipilih; 
+      // FUNGSI BARU: Manajemen Tampil/Sembunyi Objek berdasarkan Jarak & Pencarian
+      function updateVisibilitasObjek() {
         for (const key in window.roomData) {
-          if (indexDipilih === "all") {
-            window.roomData[key].wrapper.setAttribute('visible', 'true');
-            window.roomData[key].border.setAttribute('color', '#00ff00');
+          let data = window.roomData[key];
+          
+          // Cek apakah ruangan ini sesuai dengan pencarian
+          let isMatchingSearch = (window.activeTargetIndex === "all" || window.activeTargetIndex === key);
+          
+          let isWithinRange = false;
+
+          // Jika GPS sudah aktif, hitung jarak aslinya
+          if (userLat && userLng) {
+            let jarak = hitungJarakMeter(userLat, userLng, data.lat, data.lng);
+            // Ruangan tampil jika: Jarak <= 200 meter, ATAU sedang dicari secara manual (dipaksa tampil)
+            isWithinRange = (jarak <= RADIUS_MAKSIMAL) || (window.activeTargetIndex === key);
           } else {
-            if (key === indexDipilih) {
-              window.roomData[key].wrapper.setAttribute('visible', 'true');
-              window.roomData[key].border.setAttribute('color', '#ff0000');
+            // Jika GPS belum mengunci posisi, sembunyikan semua titik sementara agar tidak kacau
+            isWithinRange = false;
+          }
+
+          // Atur Tampil/Sembunyi dan Warnanya
+          if (isMatchingSearch && isWithinRange) {
+            data.wrapper.setAttribute('visible', 'true');
+            if (window.activeTargetIndex === key) {
+              data.border.setAttribute('color', '#ff0000'); // Merah untuk target pencarian
             } else {
-              window.roomData[key].wrapper.setAttribute('visible', 'false');
+              data.border.setAttribute('color', '#00ff00'); // Hijau untuk yang lain
             }
+          } else {
+            data.wrapper.setAttribute('visible', 'false'); // Sembunyikan jika diluar jangkauan
           }
         }
+      }
+
+      function filterRuangan(indexDipilih) {
+        window.activeTargetIndex = indexDipilih; 
+        updateVisibilitasObjek(); // Panggil fungsi manajemen saat pencarian diubah
       }
 
       function tampilkanInfoRuangan(index) {
@@ -253,33 +277,28 @@
             option.text = "🔍 Cari: " + loc.nama;
             searchSelect.appendChild(option);
 
-            // 1. WRAPPER UTAMA (Mengatur Posisi GPS)
             const wrapper = document.createElement('a-entity');
             wrapper.setAttribute('gps-entity-place', `latitude: ${loc.lat}; longitude: ${loc.lng};`);
+            wrapper.setAttribute('visible', 'false'); // Sembunyikan saat awal dimuat (menunggu GPS)
 
-            // 2. KONTEN BILLBOARD (Selalu menghadap kamera & diperbesar)
             const billboard = document.createElement('a-entity');
             billboard.setAttribute('look-at', '[gps-camera]');
             billboard.setAttribute('scale', '5 5 5'); 
 
-            // 3. BORDER LINGKARAN (Bingkai bulat di belakang logo)
             const border = document.createElement('a-circle');
-            border.setAttribute('radius', '0.6');  // Radius 0.6 = Diameter 1.2
+            border.setAttribute('radius', '0.6');  
             border.setAttribute('color', '#00ff00'); 
             border.setAttribute('class', 'clickable'); 
 
-            // 4. LOGO SEKOLAH (Gambar diubah bentuknya menjadi lingkaran juga)
             const logo = document.createElement('a-circle');
             logo.setAttribute('src', '#logo-smk');
-            logo.setAttribute('radius', '0.5');    // Radius 0.5 = Diameter 1.0 (Lebih kecil dari border agar bingkai terlihat)
+            logo.setAttribute('radius', '0.5');    
             logo.setAttribute('position', '0 0 0.05'); 
             
-            // Susun elemen
             billboard.appendChild(border);
             billboard.appendChild(logo);
             wrapper.appendChild(billboard);
 
-            // Simpan referensi data ruangan
             window.roomData[index] = {
               wrapper: wrapper,  
               border: border,    
@@ -289,7 +308,6 @@
               info: loc.info
             };
 
-            // Event saat border diklik
             border.addEventListener('click', function () {
               tampilkanInfoRuangan(index);
             });
@@ -324,6 +342,10 @@
               
               document.getElementById('hud-status').innerText = "GPS Aktif | Akurasi: " + Math.round(position.coords.accuracy) + "m";
 
+              // Panggil pembaruan visibilitas setiap kali siswa melangkah
+              updateVisibilitasObjek();
+
+              // Update jarak di pop up jika sedang terbuka
               if (window.activePopupIndex !== null && window.roomData[window.activePopupIndex]) {
                  let data = window.roomData[window.activePopupIndex];
                  let jarak = hitungJarakMeter(userLat, userLng, data.lat, data.lng);
